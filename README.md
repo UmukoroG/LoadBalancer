@@ -13,7 +13,7 @@ This project aims to create a WebSocket Load Balancer using Node.js, facilitatin
 - Allow users to create multiple servers from the UI and only add those servers to the lb
 - Allow users to on and off a server from the UI
 - Display the servers in the ui and data being sent through them
-- Retrieve all data sent through to lb to the servers from one database
+- Retrieve all data sent through through the lb to the servers from one database
 
 
 ## Usage
