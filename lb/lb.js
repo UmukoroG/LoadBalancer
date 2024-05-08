@@ -1,32 +1,54 @@
 const WebSocket = require('ws');
+const schedule = require('node-schedule')
 
-const backendServers = ["ws://localhost:5002/","ws://localhost:5003/"];
-const availableServers=[];
+
+const backendServers = ["ws://localhost:5002/","ws://localhost:5003/","ws://localhost:5004/"];
+let availableServers=[];
+// let availableServers = [
+//     { id: 1, name: 'Server 1', url: 'ws://localhost:5002/' },
+//     { id: 2, name: 'Server 2', url: 'ws://localhost:5003/' },
+//     { id: 3, name: 'Server 3', url: 'ws://localhost:5004/' },
+// ];
+
+let serverData = {}; // Object to store data received from each server
 
 const socket = new WebSocket.Server({ port: 5001 });
 
 //checks the health of the servers to only send data to available servers
 async function healthCheck() {
+    const newAvailablServers = [];
+
+    //Array to store all promises for concurrent execution
+    const healthCheckPromises = []
+    const serverName = ["Charmeleon","Charizard","Squirtle"]
+    
     for (let i = 0; i < backendServers.length; i++) {
         const server = backendServers[i];
         const ws = new WebSocket(server);
 
         ws.on('open', function() {
             console.log(`Server ${server} is available.`);
-            availableServers.push(server)
+            let serverInput = {id: i+1, name: serverName[i], url : server }
+            newAvailablServers.push(serverInput);
             ws.close();
         });
 
         ws.on('error', function(error) {
-            console.log(`Error connecting to server ${server}: ${error.message}`);
+            console.log(`Error connecting to server ${server}`);
         });
     }
+    availableServers=newAvailablServers;
 }
+
+//it automatically execute health checks every 1s; Make it 10s later
+const job = schedule.scheduleJob('*/10 * * * * *', function(){
+    healthCheck();
+});
 
 // Load balancing logic - round-robin
 let pos = 0;
 function getNextBackendUrl() {
-    const backendUrl = availableServers[pos];
+    const backendUrl = availableServers[pos].url;
     console.log(`Request sent to ${backendUrl}`);
     pos = (pos + 1) % availableServers.length; 
     return backendUrl;
@@ -48,12 +70,37 @@ async function forwardRequestToBackend(request, backendUrl) {
     ws.onmessage = function (event) {
         const responseData = JSON.parse(event.data);
         console.log(`Received response from ${backendUrl}:`, responseData);
+
+        // Store the received data in the serverData object
+        if (!serverData[backendUrl]) {
+            serverData[backendUrl] = [];
+        }
+        serverData[backendUrl].push(responseData);
        
-        // Resolve the promise with the received data
-        resolve(responseData);        
+        // // Resolve the promise with the received data
+        // resolve(responseData);        
         ws.close();
     };
    
+}
+
+// Function to send server list to a client
+
+function sendServerList(ws){
+    const messageData = {
+        type: 'serverList',
+        servers: availableServers,
+    };
+    ws.send(JSON.stringify(messageData));
+}
+function sendServerListAndData(ws) {
+    const messageData = {
+      type: 'serverList',
+      servers: availableServers,
+    //   serverData: serverData // Include server data in the message
+      
+    };
+    ws.send(JSON.stringify(messageData));
 }
 
 socket.on('connection', function connection(ws) {
@@ -62,17 +109,32 @@ socket.on('connection', function connection(ws) {
   ws.on('message', function incoming(message) {
     console.log('Received message from React client:', message);
 
-    // load balancing logic - round-robin
-    const backendUrl = getNextBackendUrl();
 
-    // Forward the request to the backend server
-    forwardRequestToBackend(message, backendUrl)
+    // If the client requests the server list and data
+    // if (message === 'getServerListAndData') {
+    //     // Send the server list and data to the client
+    //     sendServerListAndData(ws);
+    // }
+    // Assuming the message contains a request for server list
+    if (message === 'getServerList') {
+        console.log('serverlist sent', message);
+        sendServerList(ws);
+    }  
+    else {
+        // Forward the request to the backend server
+        const backendUrl = getNextBackendUrl();
+        forwardRequestToBackend(message, backendUrl);
+      }
 
   });
+
 
   ws.on('close', function close() {
     console.log('WebSocket client disconnected');
   });
+
+  // Send the server list when the client connects
+  sendServerList(ws);
 });
 
 // Add CORS headers for WebSocket connections

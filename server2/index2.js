@@ -12,10 +12,10 @@ const socket = new WebSocket.Server({server})
 
 //websocket connection handling
 socket.on('connection',function connection(ws){
-    console.log("Server1 websocket client connected")
+    console.log("Server2 websocket client connected")
 
     ws.on('close',function(event) {
-        console.log("Server1 webSocket connection closed:", event.reason);
+        console.log("Server2 webSocket connection closed:", event.reason);
     });
 })
 
