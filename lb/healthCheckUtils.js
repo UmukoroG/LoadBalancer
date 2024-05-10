@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 
 const backendServers = ["ws://localhost:5002/","ws://localhost:5003/","ws://localhost:5004/"];
 
+//checks the server to make sure they are available to process request
 async function healthCheck() {
     const newAvailableServers = [];
 
